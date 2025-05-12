@@ -35,7 +35,6 @@ function fetchWeather(city) {
     forecastBlock.opacity = 1.0
     errorMessage.visible = false
 }
-
 function exportToCSV(fileUrl) {
     try {
         // Создаем CSV содержимое
@@ -50,43 +49,63 @@ function exportToCSV(fileUrl) {
             csv += `"${row.date}",${row.temp},${row.tempF},"${row.desc}"\n`;
         }
 
-        // Получаем путь к файлу
+        // Получаем путь к файлу (специальная обработка для Linux)
         var path = fileUrl.toString();
-        // Удаляем префикс "file:///" для платформы Windows или "file://" для других
-        path = path.replace(/^(file:\/{3})|(qrc:\/{2})|(http:\/{2})/, "");
+        
+        // Удаляем префикс "file://" для Linux
+        if (path.startsWith("file://")) {
+            path = path.substring(7);
+        }
+        
+        // Декодируем URI-кодированные символы (например, %20 в пробелы)
         path = decodeURIComponent(path);
+        
+        console.log("Пытаемся сохранить в:", path);
 
-        // Создаем объект File для записи
+        // Используем стандартный механизм Qt для записи файла
         var file = Qt.openUrlExternally("file://" + path);
         if (!file) {
             throw new Error("Не удалось создать файл");
         }
 
-        // Альтернативный способ записи через XMLHttpRequest
+        // Альтернативный способ записи через FileWriter
         var xhr = new XMLHttpRequest();
         xhr.open("PUT", "file://" + path, false);
         xhr.send(csv);
 
         if (xhr.status === 0 || xhr.status === 200) {
             console.log("Файл успешно сохранен:", path);
+            errorMessage.text = "Файл сохранен: " + path;
+            errorMessage.color = "green";
+            errorMessage.visible = true;
+            Qt.callLater(function() {
+                errorMessage.visible = false;
+            }, 3000);
         } else {
-            throw new Error("Ошибка при записи файла. Статус: " + xhr.status);
+            throw new Error("Ошибка при записи файла");
         }
     } catch (e) {
         console.error("Ошибка при экспорте:", e);
         errorMessage.text = "Ошибка экспорта: " + e.message;
+        errorMessage.color = "red";
         errorMessage.visible = true;
     }
 }
 
 function importFromCSV(fileUrl) {
     try {
-        // Получаем путь к файлу
+        // Получаем путь к файлу (специальная обработка для Linux)
         var path = fileUrl.toString();
-        path = path.replace(/^(file:\/{3})|(qrc:\/{2})|(http:\/{2})/, "");
+        
+        // Удаляем префикс "file://" для Linux
+        if (path.startsWith("file://")) {
+            path = path.substring(7);
+        }
+        
         path = decodeURIComponent(path);
+        console.log("Пытаемся загрузить из:", path);
 
-        // Читаем файл через XMLHttpRequest
+        // Читаем файл
         var xhr = new XMLHttpRequest();
         xhr.open("GET", "file://" + path, false);
         xhr.send();
@@ -102,15 +121,15 @@ function importFromCSV(fileUrl) {
         if (sections.length > 0 && sections[0].includes("City")) {
             var currentLines = sections[0].split("\n");
             if (currentLines.length > 1) {
-                var currentCols = currentLines[1].split(",");
+                var currentCols = parseCSVLine(currentLines[1]);
                 if (currentCols.length >= 6) {
                     currentWeatherData = {
-                        city: currentCols[0].replace(/"/g, ''),
+                        city: currentCols[0],
                         temp: parseFloat(currentCols[1]),
                         tempF: parseFloat(currentCols[2]),
-                        desc: currentCols[3].replace(/"/g, ''),
-                        humidity: currentCols[4].replace(/"/g, ''),
-                        wind: currentCols[5].replace(/"/g, '')
+                        desc: currentCols[3],
+                        humidity: currentCols[4],
+                        wind: currentCols[5]
                     };
                     
                     // Обновляем UI
@@ -132,13 +151,13 @@ function importFromCSV(fileUrl) {
             var forecastLines = sections[1].split("\n");
             for (var i = 1; i < forecastLines.length; i++) {
                 if (forecastLines[i].trim() === "") continue;
-                var forecastCols = forecastLines[i].split(",");
+                var forecastCols = parseCSVLine(forecastLines[i]);
                 if (forecastCols.length >= 4) {
                     var entry = {
-                        date: forecastCols[0].replace(/"/g, ''),
+                        date: forecastCols[0],
                         temp: parseFloat(forecastCols[1]),
                         tempF: parseFloat(forecastCols[2]),
-                        desc: forecastCols[3].replace(/"/g, '')
+                        desc: forecastCols[3]
                     };
                     forecastData.push(entry);
                     forecastModel.append(entry);
@@ -148,9 +167,16 @@ function importFromCSV(fileUrl) {
         }
 
         console.log("Импорт завершен успешно");
+        errorMessage.text = "Данные успешно загружены";
+        errorMessage.color = "green";
+        errorMessage.visible = true;
+        Qt.callLater(function() {
+            errorMessage.visible = false;
+        }, 3000);
     } catch (e) {
         console.error("Ошибка при импорте:", e);
         errorMessage.text = "Ошибка импорта: " + e.message;
+        errorMessage.color = "red";
         errorMessage.visible = true;
     }
 }
