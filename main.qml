@@ -19,20 +19,25 @@ ApplicationWindow {
 
     property bool useCelsius: appSettings.tempUnit === "celsius"
 
-    FileDialog {
-        id: saveDialog
-        title: "Сохранить как CSV"
-        nameFilters: ["CSV Files (*.csv)"]
-        selectExisting: false
-        onAccepted: WeatherFetcher.exportToCSV(fileUrl)
+FileDialog {
+    id: saveDialog
+    title: "Сохранить как CSV"
+    nameFilters: ["CSV Files (*.csv)"]
+    fileMode: FileDialog.SaveFile
+    onAccepted: {
+        WeatherFetcher.exportToCSV(saveDialog.currentFile)
     }
+}
 
-    FileDialog {
-        id: loadDialog
-        title: "Открыть CSV файл"
-        nameFilters: ["CSV Files (*.csv)"]
-        onAccepted: WeatherFetcher.importFromCSV(fileUrl)
+FileDialog {
+    id: loadDialog
+    title: "Открыть CSV файл"
+    nameFilters: ["CSV Files (*.csv)"]
+    fileMode: FileDialog.OpenFile
+    onAccepted: {
+        WeatherFetcher.importFromCSV(loadDialog.currentFile)
     }
+}
 
     Rectangle {
         anchors.fill: parent
