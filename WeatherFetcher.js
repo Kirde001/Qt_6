@@ -62,4 +62,42 @@ function exportToCSV() {
     var csv = "Date,Temperature (C),Temperature (F),Description\n"
     for (var i = 0; i < forecastData.length; i++) {
         var row = forecastData[i]
-        csv += `${row.date},${row.temp},${row.tempF},${row.desc}\
+        csv += `${row.date},${row.temp},${row.tempF},${row.desc}\n`
+    }
+
+    var io = new XMLHttpRequest()
+    io.open("PUT", "forecast.csv")
+    io.send(csv)
+    console.log("CSV экспортирован.")
+}
+
+function importFromCSV() {
+    var xhr = new XMLHttpRequest()
+    xhr.open("GET", "forecast.csv")
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+            if (xhr.status === 200) {
+                var lines = xhr.responseText.split("\n")
+                forecastModel.clear()
+                forecastData = []
+                for (var i = 1; i < lines.length; i++) {
+                    var cols = lines[i].split(",")
+                    if (cols.length >= 4) {
+                        var entry = {
+                            date: cols[0],
+                            temp: cols[1],
+                            tempF: cols[2],
+                            desc: cols[3]
+                        }
+                        forecastData.push(entry)
+                        forecastModel.append(entry)
+                    }
+                }
+                forecastBlock.opacity = 1.0
+            } else {
+                console.log("Ошибка при импорте CSV:", xhr.status)
+            }
+        }
+    }
+    xhr.send()
+}
