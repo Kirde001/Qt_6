@@ -97,6 +97,29 @@ ApplicationWindow {
                 }
             }
 
+            // --- CSV Buttons ---
+            Button {
+                text: qsTr("Экспорт в CSV")
+                font.pointSize: 14
+                Layout.preferredWidth: 300
+                background: Rectangle {
+                    color: "#2196f3"
+                    radius: 5
+                }
+                onClicked: WeatherFetcher.exportToCSV()
+            }
+
+            Button {
+                text: qsTr("Импорт из CSV")
+                font.pointSize: 14
+                Layout.preferredWidth: 300
+                background: Rectangle {
+                    color: "#ff9800"
+                    radius: 5
+                }
+                onClicked: WeatherFetcher.importFromCSV()
+            }
+
             ColumnLayout {
                 id: weatherBlock
                 spacing: 10
@@ -230,6 +253,7 @@ ApplicationWindow {
         }
 
         Component.onCompleted: {
+            WeatherFetcher.setContext(appSettings, cityName, temperature, description, humidity, wind, forecastModel, weatherBlock, forecastBlock, errorMessage)
             if (appSettings.lastCity !== "") {
                 cityInput.text = appSettings.lastCity
                 WeatherFetcher.fetchWeather(appSettings.lastCity)
