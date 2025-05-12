@@ -1,7 +1,17 @@
 var forecastData = []
+var currentWeatherData = null
 
 function fetchWeather(city) {
     // Dummy data for demonstration
+    currentWeatherData = {
+        city: city,
+        temp: 15,
+        tempF: 59,
+        desc: "Облачно",
+        humidity: "75%",
+        wind: "5 м/с"
+    }
+    
     forecastData = [
         { date: "2025-05-12", temp: 15, tempF: 59, desc: "Облачно" },
         { date: "2025-05-13", temp: 17, tempF: 62.6, desc: "Солнечно" },
@@ -9,55 +19,142 @@ function fetchWeather(city) {
         { date: "2025-05-15", temp: 16, tempF: 60.8, desc: "Ясно" }
     ]
 
+    // Update current weather UI
+    cityName.text = "Город: " + currentWeatherData.city
+    temperature.text = "Температура: " + (useCelsius ? currentWeatherData.temp + "°C" : currentWeatherData.tempF + "°F")
+    description.text = "Описание: " + currentWeatherData.desc
+    humidity.text = "Влажность: " + currentWeatherData.humidity
+    wind.text = "Ветер: " + currentWeatherData.wind
+    weatherBlock.opacity = 1.0
+
+    // Update forecast
     forecastModel.clear()
     for (var i = 0; i < forecastData.length; i++) {
         forecastModel.append(forecastData[i])
     }
     forecastBlock.opacity = 1.0
+    errorMessage.visible = false
 }
 
 function exportToCSV(fileUrl) {
-    var csv = "Date,Temperature (C),Temperature (F),Description\n"
-    for (var i = 0; i < forecastData.length; i++) {
-        var row = forecastData[i]
-        csv += `${row.date},${row.temp},${row.tempF},${row.desc}\n`
-    }
+    try {
+        var path = fileUrl.toString().replace(/^(file:\/{3})|(qrc:\/{2})|(http:\/{2})/, "");
+        path = decodeURIComponent(path);
+        
+        var csv = "City,Temperature (C),Temperature (F),Description,Humidity,Wind\n";
+        if (currentWeatherData) {
+            csv += `"${currentWeatherData.city}",${currentWeatherData.temp},${currentWeatherData.tempF},"${currentWeatherData.desc}","${currentWeatherData.humidity}","${currentWeatherData.wind}"\n`;
+        }
+        
+        csv += "\nForecast Data\nDate,Temperature (C),Temperature (F),Description\n";
+        for (var i = 0; i < forecastData.length; i++) {
+            var row = forecastData[i];
+            csv += `"${row.date}",${row.temp},${row.tempF},"${row.desc}"\n`;
+        }
 
-    var file = Qt.openFileHandle(fileUrl, "w")
-    if (file) {
-        file.write(csv)
-        file.close()
-        console.log("CSV успешно экспортирован:", fileUrl)
-    } else {
-        console.log("Не удалось открыть файл для записи.")
+        var file = Qt.openUrlExternally("file://" + path + ".csv");
+        var fileHandle = new XMLHttpRequest();
+        fileHandle.open("PUT", "file://" + path + ".csv", false);
+        fileHandle.send(csv);
+        
+        console.log("CSV успешно экспортирован:", path + ".csv");
+    } catch (e) {
+        console.log("Ошибка при экспорте CSV:", e);
+        errorMessage.text = "Ошибка при экспорте: " + e.message;
+        errorMessage.visible = true;
     }
 }
 
 function importFromCSV(fileUrl) {
-    var file = Qt.openFileHandle(fileUrl, "r")
-    if (!file) {
-        console.log("Не удалось открыть файл для чтения.")
-        return
-    }
-
-    var text = file.readAll()
-    file.close()
-
-    var lines = text.split("\n")
-    forecastModel.clear()
-    forecastData = []
-    for (var i = 1; i < lines.length; i++) {
-        var cols = lines[i].split(",")
-        if (cols.length >= 4) {
-            var entry = {
-                date: cols[0],
-                temp: cols[1],
-                tempF: cols[2],
-                desc: cols[3]
+    try {
+        var path = fileUrl.toString().replace(/^(file:\/{3})|(qrc:\/{2})|(http:\/{2})/, "");
+        path = decodeURIComponent(path);
+        
+        var fileHandle = new XMLHttpRequest();
+        fileHandle.open("GET", "file://" + path, false);
+        fileHandle.send();
+        
+        if (fileHandle.status !== 200) {
+            throw new Error("Не удалось прочитать файл");
+        }
+        
+        var text = fileHandle.responseText;
+        var sections = text.split("\n\n");
+        
+        // Parse current weather
+        if (sections.length > 0 && sections[0].includes("City")) {
+            var currentLines = sections[0].split("\n");
+            if (currentLines.length > 1) {
+                var currentCols = parseCSVLine(currentLines[1]);
+                if (currentCols.length >= 6) {
+                    currentWeatherData = {
+                        city: currentCols[0],
+                        temp: parseFloat(currentCols[1]),
+                        tempF: parseFloat(currentCols[2]),
+                        desc: currentCols[3],
+                        humidity: currentCols[4],
+                        wind: currentCols[5]
+                    };
+                    
+                    cityInput.text = currentWeatherData.city;
+                    cityName.text = "Город: " + currentWeatherData.city;
+                    temperature.text = "Температура: " + (useCelsius ? currentWeatherData.temp + "°C" : currentWeatherData.tempF + "°F");
+                    description.text = "Описание: " + currentWeatherData.desc;
+                    humidity.text = "Влажность: " + currentWeatherData.humidity;
+                    wind.text = "Ветер: " + currentWeatherData.wind;
+                    weatherBlock.opacity = 1.0;
+                }
             }
-            forecastData.push(entry)
-            forecastModel.append(entry)
+        }
+        
+        // Parse forecast
+        if (sections.length > 1 && sections[1].includes("Forecast Data")) {
+            forecastModel.clear();
+            forecastData = [];
+            var forecastLines = sections[1].split("\n");
+            for (var i = 1; i < forecastLines.length; i++) {
+                if (forecastLines[i].trim() === "") continue;
+                var forecastCols = parseCSVLine(forecastLines[i]);
+                if (forecastCols.length >= 4) {
+                    var entry = {
+                        date: forecastCols[0],
+                        temp: parseFloat(forecastCols[1]),
+                        tempF: parseFloat(forecastCols[2]),
+                        desc: forecastCols[3]
+                    };
+                    forecastData.push(entry);
+                    forecastModel.append(entry);
+                }
+            }
+            forecastBlock.opacity = 1.0;
+        }
+        
+        console.log("CSV успешно импортирован");
+    } catch (e) {
+        console.log("Ошибка при импорте CSV:", e);
+        errorMessage.text = "Ошибка при импорте: " + e.message;
+        errorMessage.visible = true;
+    }
+}
+
+function parseCSVLine(line) {
+    var result = [];
+    var inQuotes = false;
+    var currentField = "";
+    
+    for (var i = 0; i < line.length; i++) {
+        var char = line[i];
+        
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            result.push(currentField);
+            currentField = "";
+        } else {
+            currentField += char;
         }
     }
-    forecastBlock.opacity = 1.0
+    
+    result.push(currentField);
+    return result;
 }
