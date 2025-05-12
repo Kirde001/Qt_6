@@ -1,125 +1,65 @@
-var apiKey = "53f2e1b43a53b9ec86018cdf1e816cfa"
-var baseUrl = "https://api.openweathermap.org/data/2.5/weather"
-var forecastUrl = "https://api.openweathermap.org/data/2.5/forecast"
+.pragma library
 
-function convertToFahrenheit(celsius) {
-    return Math.round((celsius * 9/5 + 32) * 10) / 10;
+var forecastData = []
+var cityData = {}
+var appSettings
+var cityName, temperature, description, humidity, wind
+var forecastModel, weatherBlock, forecastBlock, errorMessage
+
+function setContext(settings, cityNameId, temperatureId, descriptionId, humidityId, windId, forecastModelId, weatherBlockId, forecastBlockId, errorMessageId) {
+    appSettings = settings
+    cityName = cityNameId
+    temperature = temperatureId
+    description = descriptionId
+    humidity = humidityId
+    wind = windId
+    forecastModel = forecastModelId
+    weatherBlock = weatherBlockId
+    forecastBlock = forecastBlockId
+    errorMessage = errorMessageId
 }
 
 function fetchWeather(city) {
-    if (!city) {
-        errorMessage.text = qsTr("Введите город")
-        errorMessage.visible = true
-        return
+    console.log("Fetching weather for:", city)
+
+    // Пример заглушки
+    cityData = {
+        city: city,
+        temperature: appSettings.tempUnit === "celsius" ? "25" : "77",
+        description: "Ясно",
+        humidity: "40%",
+        wind: "5 м/с"
     }
 
-    // Fetch current weather
-    var xhr = new XMLHttpRequest()
-    var url = baseUrl + "?q=" + encodeURIComponent(city) +
-              "&appid=" + apiKey + "&units=metric&lang=ru"
+    forecastData = [
+        { date: "2025-05-13", temp: "23", tempF: "73", desc: "Солнечно" },
+        { date: "2025-05-14", temp: "21", tempF: "69", desc: "Облачно" },
+        { date: "2025-05-15", temp: "22", tempF: "71", desc: "Дождь" },
+        { date: "2025-05-16", temp: "24", tempF: "75", desc: "Ясно" }
+    ]
 
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
-            if (xhr.status === 200) {
-                var response = JSON.parse(xhr.responseText)
-                cityName.text = qsTr("Город: ") + response.name
-
-                var tempC = response.main.temp
-                var tempF = convertToFahrenheit(tempC)
-                temperature.text = qsTr("Температура: ") +
-                    (useCelsius ? tempC + "°C" : tempF + "°F")
-
-                description.text = qsTr("Описание: ") + response.weather[0].description
-                humidity.text = qsTr("Влажность: ") + response.main.humidity + "%"
-                wind.text = qsTr("Ветер: ") + response.wind.speed + " м/с"
-                errorMessage.visible = false
-                weatherBlock.opacity = 1.0
-                fetchForecast(city)
-            } else {
-                errorMessage.text = qsTr("Ошибка: проверьте название города")
-                errorMessage.visible = true
-                weatherBlock.opacity = 0.0
-                forecastBlock.opacity = 0.0
-            }
-        }
-    }
-
-    xhr.open("GET", url)
-    xhr.send()
+    updateUI()
 }
 
-function fetchForecast(city) {
-    var xhr = new XMLHttpRequest()
-    var url = forecastUrl + "?q=" + encodeURIComponent(city) +
-              "&appid=" + apiKey + "&units=metric&lang=ru"
+function updateUI() {
+    cityName.text = "Город: " + cityData.city
+    temperature.text = "Температура: " + cityData.temperature + (appSettings.tempUnit === "celsius" ? "°C" : "°F")
+    description.text = "Описание: " + cityData.description
+    humidity.text = "Влажность: " + cityData.humidity
+    wind.text = "Ветер: " + cityData.wind
 
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
-            if (xhr.status === 200) {
-                var response = JSON.parse(xhr.responseText)
-                var dailyForecasts = processForecastData(response.list)
-                forecastModel.clear()
-
-                for (var i = 0; i < dailyForecasts.length; i++) {
-                    forecastModel.append({
-                        date: dailyForecasts[i].date,
-                        temp: dailyForecasts[i].temp,
-                        tempF: dailyForecasts[i].tempF,
-                        desc: dailyForecasts[i].desc
-                    })
-                }
-                forecastBlock.opacity = 1.0
-            } else {
-                errorMessage.text = qsTr("Ошибка при загрузке прогноза")
-                errorMessage.visible = true
-                forecastBlock.opacity = 0.0
-            }
-        }
+    forecastModel.clear()
+    for (var i = 0; i < forecastData.length; i++) {
+        forecastModel.append(forecastData[i])
     }
 
-    xhr.open("GET", url)
-    xhr.send()
+    weatherBlock.opacity = 1.0
+    forecastBlock.opacity = 1.0
+    errorMessage.visible = false
 }
 
-function processForecastData(list) {
-    var dailyData = {}
-    var currentDate = new Date()
-    currentDate.setHours(0, 0, 0, 0)
-
-    for (var i = 0; i < list.length; i++) {
-        var item = list[i]
-        var itemDate = new Date(item.dt * 1000)
-        var dayKey = itemDate.toISOString().split('T')[0]
-
-        if (itemDate.getDate() === currentDate.getDate()) continue
-
-        if (!dailyData[dayKey]) {
-            dailyData[dayKey] = {
-                temps: [],
-                tempsF: [],
-                desc: item.weather[0].description
-            }
-        }
-        dailyData[dayKey].temps.push(item.main.temp)
-        dailyData[dayKey].tempsF.push(convertToFahrenheit(item.main.temp))
-    }
-
-    var result = []
-    var keys = Object.keys(dailyData).sort()
-    for (var i = 0; i < keys.length && i < 4; i++) {
-        var key = keys[i]
-        var temps = dailyData[key].temps
-        var tempsF = dailyData[key].tempsF
-        var avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length
-        var avgTempF = tempsF.reduce((a, b) => a + b, 0) / tempsF.length
-
-        result.push({
-            date: new Date(key).toLocaleDateString('ru-RU', { weekday: 'long' }),
-            temp: Math.round(avgTemp * 10) / 10,
-            tempF: Math.round(avgTempF * 10) / 10,
-            desc: dailyData[key].desc
-        })
-    }
-
-    return result
-}
+function exportToCSV() {
+    var csv = "Date,Temperature (C),Temperature (F),Description\n"
+    for (var i = 0; i < forecastData.length; i++) {
+        var row = forecastData[i]
+        csv += `${row.date},${row.temp},${row.tempF},${row.desc}\
