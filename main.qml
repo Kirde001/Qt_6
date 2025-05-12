@@ -19,29 +19,38 @@ ApplicationWindow {
 
     property bool useCelsius: appSettings.tempUnit === "celsius"
 
-FileDialog {
-    id: saveDialog
-    title: "Сохранить как CSV"
-    nameFilters: ["CSV files (*.csv)"]
-    fileMode: FileDialog.SaveFile
-    defaultSuffix: "csv"
-    folder: StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
-    onAccepted: {
-        WeatherFetcher.exportToCSV(saveDialog.fileUrl)
-    }
-}
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtQuick.Dialogs 1.3
+import Qt.labs.platform 1.1
 
-FileDialog {
-    id: loadDialog
-    title: "Открыть CSV файл"
-    nameFilters: ["CSV files (*.csv)"]
-    fileMode: FileDialog.OpenFile
-    folder: StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
-    onAccepted: {
-        WeatherFetcher.importFromCSV(loadDialog.fileUrl)
-    }
-}
+ApplicationWindow {
+    // ... остальные свойства ...
 
+    FileDialog {
+        id: saveDialog
+        title: "Сохранить как CSV"
+        nameFilters: ["CSV files (*.csv)"]
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "csv"
+        onAccepted: {
+            // Явно передаем выбранный файл
+            WeatherFetcher.exportToCSV(saveDialog.file.toString())
+        }
+    }
+
+    FileDialog {
+        id: loadDialog
+        title: "Открыть CSV файл"
+        nameFilters: ["CSV files (*.csv)"]
+        fileMode: FileDialog.OpenFile
+        onAccepted: {
+            WeatherFetcher.importFromCSV(loadDialog.file.toString())
+        }
+    }
+
+    // ... остальной интерфейс ...
+}
     Rectangle {
         anchors.fill: parent
         color: "#f0f0f0"
