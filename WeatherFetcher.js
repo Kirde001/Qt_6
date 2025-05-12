@@ -38,9 +38,7 @@ function fetchWeather(city) {
 
 function exportToCSV(fileUrl) {
     try {
-        var path = fileUrl.toString().replace(/^(file:\/{3})|(qrc:\/{2})|(http:\/{2})/, "");
-        path = decodeURIComponent(path);
-        
+        // Создаем CSV содержимое
         var csv = "City,Temperature (C),Temperature (F),Description,Humidity,Wind\n";
         if (currentWeatherData) {
             csv += `"${currentWeatherData.city}",${currentWeatherData.temp},${currentWeatherData.tempF},"${currentWeatherData.desc}","${currentWeatherData.humidity}","${currentWeatherData.wind}"\n`;
@@ -52,50 +50,70 @@ function exportToCSV(fileUrl) {
             csv += `"${row.date}",${row.temp},${row.tempF},"${row.desc}"\n`;
         }
 
-        var file = Qt.openUrlExternally("file://" + path + ".csv");
-        var fileHandle = new XMLHttpRequest();
-        fileHandle.open("PUT", "file://" + path + ".csv", false);
-        fileHandle.send(csv);
-        
-        console.log("CSV успешно экспортирован:", path + ".csv");
+        // Получаем путь к файлу
+        var path = fileUrl.toString();
+        // Удаляем префикс "file:///" для платформы Windows или "file://" для других
+        path = path.replace(/^(file:\/{3})|(qrc:\/{2})|(http:\/{2})/, "");
+        path = decodeURIComponent(path);
+
+        // Создаем объект File для записи
+        var file = Qt.openUrlExternally("file://" + path);
+        if (!file) {
+            throw new Error("Не удалось создать файл");
+        }
+
+        // Альтернативный способ записи через XMLHttpRequest
+        var xhr = new XMLHttpRequest();
+        xhr.open("PUT", "file://" + path, false);
+        xhr.send(csv);
+
+        if (xhr.status === 0 || xhr.status === 200) {
+            console.log("Файл успешно сохранен:", path);
+        } else {
+            throw new Error("Ошибка при записи файла. Статус: " + xhr.status);
+        }
     } catch (e) {
-        console.log("Ошибка при экспорте CSV:", e);
-        errorMessage.text = "Ошибка при экспорте: " + e.message;
+        console.error("Ошибка при экспорте:", e);
+        errorMessage.text = "Ошибка экспорта: " + e.message;
         errorMessage.visible = true;
     }
 }
 
 function importFromCSV(fileUrl) {
     try {
-        var path = fileUrl.toString().replace(/^(file:\/{3})|(qrc:\/{2})|(http:\/{2})/, "");
+        // Получаем путь к файлу
+        var path = fileUrl.toString();
+        path = path.replace(/^(file:\/{3})|(qrc:\/{2})|(http:\/{2})/, "");
         path = decodeURIComponent(path);
-        
-        var fileHandle = new XMLHttpRequest();
-        fileHandle.open("GET", "file://" + path, false);
-        fileHandle.send();
-        
-        if (fileHandle.status !== 200) {
-            throw new Error("Не удалось прочитать файл");
+
+        // Читаем файл через XMLHttpRequest
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "file://" + path, false);
+        xhr.send();
+
+        if (xhr.status !== 0 && xhr.status !== 200) {
+            throw new Error("Не удалось прочитать файл. Статус: " + xhr.status);
         }
-        
-        var text = fileHandle.responseText;
+
+        var text = xhr.responseText;
         var sections = text.split("\n\n");
-        
-        // Parse current weather
+
+        // Парсим текущую погоду
         if (sections.length > 0 && sections[0].includes("City")) {
             var currentLines = sections[0].split("\n");
             if (currentLines.length > 1) {
-                var currentCols = parseCSVLine(currentLines[1]);
+                var currentCols = currentLines[1].split(",");
                 if (currentCols.length >= 6) {
                     currentWeatherData = {
-                        city: currentCols[0],
+                        city: currentCols[0].replace(/"/g, ''),
                         temp: parseFloat(currentCols[1]),
                         tempF: parseFloat(currentCols[2]),
-                        desc: currentCols[3],
-                        humidity: currentCols[4],
-                        wind: currentCols[5]
+                        desc: currentCols[3].replace(/"/g, ''),
+                        humidity: currentCols[4].replace(/"/g, ''),
+                        wind: currentCols[5].replace(/"/g, '')
                     };
                     
+                    // Обновляем UI
                     cityInput.text = currentWeatherData.city;
                     cityName.text = "Город: " + currentWeatherData.city;
                     temperature.text = "Температура: " + (useCelsius ? currentWeatherData.temp + "°C" : currentWeatherData.tempF + "°F");
@@ -106,21 +124,21 @@ function importFromCSV(fileUrl) {
                 }
             }
         }
-        
-        // Parse forecast
+
+        // Парсим прогноз
         if (sections.length > 1 && sections[1].includes("Forecast Data")) {
             forecastModel.clear();
             forecastData = [];
             var forecastLines = sections[1].split("\n");
             for (var i = 1; i < forecastLines.length; i++) {
                 if (forecastLines[i].trim() === "") continue;
-                var forecastCols = parseCSVLine(forecastLines[i]);
+                var forecastCols = forecastLines[i].split(",");
                 if (forecastCols.length >= 4) {
                     var entry = {
-                        date: forecastCols[0],
+                        date: forecastCols[0].replace(/"/g, ''),
                         temp: parseFloat(forecastCols[1]),
                         tempF: parseFloat(forecastCols[2]),
-                        desc: forecastCols[3]
+                        desc: forecastCols[3].replace(/"/g, '')
                     };
                     forecastData.push(entry);
                     forecastModel.append(entry);
@@ -128,11 +146,11 @@ function importFromCSV(fileUrl) {
             }
             forecastBlock.opacity = 1.0;
         }
-        
-        console.log("CSV успешно импортирован");
+
+        console.log("Импорт завершен успешно");
     } catch (e) {
-        console.log("Ошибка при импорте CSV:", e);
-        errorMessage.text = "Ошибка при импорте: " + e.message;
+        console.error("Ошибка при импорте:", e);
+        errorMessage.text = "Ошибка импорта: " + e.message;
         errorMessage.visible = true;
     }
 }
