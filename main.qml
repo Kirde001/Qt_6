@@ -8,7 +8,7 @@ import "WeatherFetcher.js" as WeatherFetcher
 ApplicationWindow {
     visible: true
     width: 400
-    height: 650
+    height: 700
     title: qsTr("Погодный информатор")
 
     Settings {
@@ -18,6 +18,21 @@ ApplicationWindow {
     }
 
     property bool useCelsius: appSettings.tempUnit === "celsius"
+
+    FileDialog {
+        id: saveDialog
+        title: "Сохранить как CSV"
+        nameFilters: ["CSV Files (*.csv)"]
+        selectExisting: false
+        onAccepted: WeatherFetcher.exportToCSV(fileUrl)
+    }
+
+    FileDialog {
+        id: loadDialog
+        title: "Открыть CSV файл"
+        nameFilters: ["CSV Files (*.csv)"]
+        onAccepted: WeatherFetcher.importFromCSV(fileUrl)
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -97,27 +112,19 @@ ApplicationWindow {
                 }
             }
 
-            // --- CSV Buttons ---
-            Button {
-                text: qsTr("Экспорт в CSV")
-                font.pointSize: 14
-                Layout.preferredWidth: 300
-                background: Rectangle {
-                    color: "#2196f3"
-                    radius: 5
-                }
-                onClicked: WeatherFetcher.exportToCSV()
-            }
+            RowLayout {
+                spacing: 10
+                Layout.alignment: Qt.AlignHCenter
 
-            Button {
-                text: qsTr("Импорт из CSV")
-                font.pointSize: 14
-                Layout.preferredWidth: 300
-                background: Rectangle {
-                    color: "#ff9800"
-                    radius: 5
+                Button {
+                    text: "Экспорт в CSV"
+                    onClicked: saveDialog.open()
                 }
-                onClicked: WeatherFetcher.importFromCSV()
+
+                Button {
+                    text: "Импорт из CSV"
+                    onClicked: loadDialog.open()
+                }
             }
 
             ColumnLayout {
@@ -129,45 +136,11 @@ ApplicationWindow {
                     NumberAnimation { duration: 500 }
                 }
 
-                Text {
-                    id: cityName
-                    text: qsTr("Город: -")
-                    font.pointSize: 18
-                    font.bold: true
-                    color: "#333"
-                }
-
-                Text {
-                    id: temperature
-                    text: qsTr("Температура: -")
-                    font.pointSize: 18
-                    color: "#ff5722"
-                    font.bold: true
-                    Behavior on text {
-                        NumberAnimation { duration: 300; easing.type: Easing.InOutQuad }
-                    }
-                }
-
-                Text {
-                    id: description
-                    text: qsTr("Описание: -")
-                    font.pointSize: 14
-                    color: "#757575"
-                }
-
-                Text {
-                    id: humidity
-                    text: qsTr("Влажность: -")
-                    font.pointSize: 14
-                    color: "#757575"
-                }
-
-                Text {
-                    id: wind
-                    text: qsTr("Ветер: -")
-                    font.pointSize: 14
-                    color: "#757575"
-                }
+                Text { id: cityName; text: qsTr("Город: -"); font.pointSize: 18; font.bold: true; color: "#333" }
+                Text { id: temperature; text: qsTr("Температура: -"); font.pointSize: 18; color: "#ff5722"; font.bold: true }
+                Text { id: description; text: qsTr("Описание: -"); font.pointSize: 14; color: "#757575" }
+                Text { id: humidity; text: qsTr("Влажность: -"); font.pointSize: 14; color: "#757575" }
+                Text { id: wind; text: qsTr("Ветер: -"); font.pointSize: 14; color: "#757575" }
             }
 
             ColumnLayout {
@@ -188,9 +161,7 @@ ApplicationWindow {
                     Layout.alignment: Qt.AlignHCenter
                 }
 
-                ListModel {
-                    id: forecastModel
-                }
+                ListModel { id: forecastModel }
 
                 ListView {
                     id: forecastView
@@ -212,30 +183,9 @@ ApplicationWindow {
                             anchors.margins: 10
                             spacing: 10
 
-                            Text {
-                                text: model.date
-                                font.pointSize: 12
-                                color: "#333"
-                                Layout.preferredWidth: parent.width * 0.4
-                                elide: Text.ElideRight
-                            }
-
-                            Text {
-                                text: useCelsius ? model.temp + "°C" : model.tempF + "°F"
-                                font.pointSize: 12
-                                color: "#ff5722"
-                                font.bold: true
-                                Layout.preferredWidth: parent.width * 0.2
-                                horizontalAlignment: Text.AlignRight
-                            }
-
-                            Text {
-                                text: model.desc
-                                font.pointSize: 12
-                                color: "#757575"
-                                Layout.preferredWidth: parent.width * 0.4
-                                elide: Text.ElideRight
-                            }
+                            Text { text: model.date; font.pointSize: 12; color: "#333"; Layout.preferredWidth: parent.width * 0.4; elide: Text.ElideRight }
+                            Text { text: useCelsius ? model.temp + "°C" : model.tempF + "°F"; font.pointSize: 12; color: "#ff5722"; font.bold: true; Layout.preferredWidth: parent.width * 0.2 }
+                            Text { text: model.desc; font.pointSize: 12; color: "#757575"; Layout.preferredWidth: parent.width * 0.4; elide: Text.ElideRight }
                         }
                     }
                 }
@@ -253,7 +203,6 @@ ApplicationWindow {
         }
 
         Component.onCompleted: {
-            WeatherFetcher.setContext(appSettings, cityName, temperature, description, humidity, wind, forecastModel, weatherBlock, forecastBlock, errorMessage)
             if (appSettings.lastCity !== "") {
                 cityInput.text = appSettings.lastCity
                 WeatherFetcher.fetchWeather(appSettings.lastCity)
