@@ -35,89 +35,158 @@ function fetchWeather(city) {
     forecastBlock.opacity = 1.0
     errorMessage.visible = false
 }
-function exportToCSV(file) {
+function exportToCSV(filePath) {
     try {
-        if (!file) {
-            throw new Error("Не указан файл для сохранения");
+        if (!filePath) {
+            throw new Error("Не указан путь для сохранения");
         }
 
-        // Создаем CSV содержимое
-        var csv = "City,Temperature (C),Temperature (F),Description,Humidity,Wind\n";
-        if (currentWeatherData) {
-            csv += `"${currentWeatherData.city}",${currentWeatherData.temp},${currentWeatherData.tempF},"${currentWeatherData.desc}","${currentWeatherData.humidity}","${currentWeatherData.wind}"\n`;
-        }
+        // 1. Подготовка данных CSV
+        var csvContent = prepareCSVData();
         
-        csv += "\nForecast Data\nDate,Temperature (C),Temperature (F),Description\n";
-        for (var i = 0; i < forecastData.length; i++) {
-            var row = forecastData[i];
-            csv += `"${row.date}",${row.temp},${row.tempF},"${row.desc}"\n`;
-        }
-
-        // Получаем путь как строку
-        var path = file.toString();
+        // 2. Обработка пути файла
+        var cleanPath = processFilePath(filePath);
         
-        // Для Linux: удаляем "file://" префикс
-        if (path.startsWith("file://")) {
-            path = path.substring(7);
-        }
+        // 3. Запись файла
+        writeFile(cleanPath, csvContent);
         
-        // Декодируем URI компоненты
-        path = decodeURIComponent(path);
-        
-        console.log("Сохраняем в файл:", path);
-
-        // Создаем объект File для записи
-        var fileHandle = new XMLHttpRequest();
-        fileHandle.open("PUT", "file://" + path, false);
-        fileHandle.send(csv);
-
-        if (fileHandle.status === 0 || fileHandle.status === 200) {
-            console.log("Файл успешно сохранен:", path);
-            showMessage("Файл сохранен: " + path, "green");
-        } else {
-            throw new Error("Ошибка при записи файла. Статус: " + fileHandle.status);
-        }
+        showMessage("Файл успешно сохранен: " + cleanPath, "green");
     } catch (e) {
         console.error("Ошибка при экспорте:", e);
         showMessage("Ошибка экспорта: " + e.message, "red");
     }
 }
 
-function importFromCSV(file) {
+function importFromCSV(filePath) {
     try {
-        if (!file) {
+        if (!filePath) {
             throw new Error("Не указан файл для загрузки");
         }
 
-        // Получаем путь как строку
-        var path = file.toString();
+        // 1. Обработка пути файла
+        var cleanPath = processFilePath(filePath);
         
-        // Для Linux: удаляем "file://" префикс
-        if (path.startsWith("file://")) {
-            path = path.substring(7);
-        }
+        // 2. Чтение файла
+        var fileContent = readFile(cleanPath);
         
-        path = decodeURIComponent(path);
-        console.log("Загружаем из файла:", path);
-
-        // Читаем файл
-        var fileHandle = new XMLHttpRequest();
-        fileHandle.open("GET", "file://" + path, false);
-        fileHandle.send();
-
-        if (fileHandle.status !== 0 && fileHandle.status !== 200) {
-            throw new Error("Не удалось прочитать файл. Статус: " + fileHandle.status);
-        }
-
-        var text = fileHandle.responseText;
-        // ... остальная часть функции импорта ...
+        // 3. Парсинг данных
+        parseCSVData(fileContent);
+        
+        showMessage("Данные успешно загружены", "green");
     } catch (e) {
         console.error("Ошибка при импорте:", e);
         showMessage("Ошибка импорта: " + e.message, "red");
     }
 }
 
-// Вспомогательная функция для показа сообщений
+// Вспомогательные функции:
+
+function prepareCSVData() {
+    var csv = "City,Temperature (C),Temperature (F),Description,Humidity,Wind\n";
+    
+    if (currentWeatherData) {
+        csv += `"${currentWeatherData.city}",${currentWeatherData.temp},${currentWeatherData.tempF},"${currentWeatherData.desc}","${currentWeatherData.humidity}","${currentWeatherData.wind}"\n`;
+    }
+    
+    csv += "\nForecast Data\nDate,Temperature (C),Temperature (F),Description\n";
+    forecastData.forEach(row => {
+        csv += `"${row.date}",${row.temp},${row.tempF},"${row.desc}"\n`;
+    });
+    
+    return csv;
+}
+
+function processFilePath(filePath) {
+    // Удаляем префикс "file://" если есть
+    if (filePath.startsWith("file://")) {
+        filePath = filePath.substring(7);
+    }
+    
+    // Декодируем URI-компоненты (например, %20 → пробел)
+    filePath = decodeURIComponent(filePath);
+    
+    // Убедимся, что путь не пустой
+    if (!filePath.trim()) {
+        throw new Error("Получен пустой путь к файлу");
+    }
+    
+    return filePath;
+}
+
+function writeFile(path, content) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("PUT", "file://" + path, false);
+    xhr.send(content);
+    
+    if (xhr.status !== 0 && xhr.status !== 200) {
+        throw new Error("Ошибка записи файла. Статус: " + xhr.status);
+    }
+}
+
+function readFile(path) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "file://" + path, false);
+    xhr.send();
+    
+    if (xhr.status !== 0 && xhr.status !== 200) {
+        throw new Error("Ошибка чтения файла. Статус: " + xhr.status);
+    }
+    
+    return xhr.responseText;
+}
+
+function parseCSVData(content) {
+    var sections = content.split("\n\n");
+    
+    // Парсинг текущей погоды
+    if (sections[0].includes("City")) {
+        var currentLines = sections[0].split("\n");
+        if (currentLines.length > 1) {
+            var cols = currentLines[1].split(",");
+            currentWeatherData = {
+                city: cols[0].replace(/"/g, ''),
+                temp: parseFloat(cols[1]),
+                tempF: parseFloat(cols[2]),
+                desc: cols[3].replace(/"/g, ''),
+                humidity: cols[4].replace(/"/g, ''),
+                wind: cols[5].replace(/"/g, '')
+            };
+            updateCurrentWeatherUI();
+        }
+    }
+    
+    // Парсинг прогноза
+    if (sections[1] && sections[1].includes("Forecast Data")) {
+        forecastModel.clear();
+        forecastData = [];
+        
+        sections[1].split("\n").slice(1).forEach(line => {
+            if (line.trim()) {
+                var cols = line.split(",");
+                var entry = {
+                    date: cols[0].replace(/"/g, ''),
+                    temp: parseFloat(cols[1]),
+                    tempF: parseFloat(cols[2]),
+                    desc: cols[3].replace(/"/g, '')
+                };
+                forecastData.push(entry);
+                forecastModel.append(entry);
+            }
+        });
+        forecastBlock.opacity = 1.0;
+    }
+}
+
+function updateCurrentWeatherUI() {
+    cityInput.text = currentWeatherData.city;
+    cityName.text = "Город: " + currentWeatherData.city;
+    temperature.text = "Температура: " + (useCelsius ? currentWeatherData.temp + "°C" : currentWeatherData.tempF + "°F");
+    description.text = "Описание: " + currentWeatherData.desc;
+    humidity.text = "Влажность: " + currentWeatherData.humidity;
+    wind.text = "Ветер: " + currentWeatherData.wind;
+    weatherBlock.opacity = 1.0;
+}
+
 function showMessage(text, color) {
     errorMessage.text = text;
     errorMessage.color = color;
@@ -125,26 +194,4 @@ function showMessage(text, color) {
     Qt.callLater(function() {
         errorMessage.visible = false;
     }, 3000);
-}
-
-function parseCSVLine(line) {
-    var result = [];
-    var inQuotes = false;
-    var currentField = "";
-    
-    for (var i = 0; i < line.length; i++) {
-        var char = line[i];
-        
-        if (char === '"') {
-            inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-            result.push(currentField);
-            currentField = "";
-        } else {
-            currentField += char;
-        }
-    }
-    
-    result.push(currentField);
-    return result;
 }
