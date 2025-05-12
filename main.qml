@@ -22,20 +22,23 @@ ApplicationWindow {
 FileDialog {
     id: saveDialog
     title: "Сохранить как CSV"
-    nameFilters: ["CSV Files (*.csv)"]
+    nameFilters: ["CSV files (*.csv)"]
     fileMode: FileDialog.SaveFile
+    defaultSuffix: "csv"
+    folder: StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
     onAccepted: {
-        WeatherFetcher.exportToCSV(saveDialog.currentFile)
+        WeatherFetcher.exportToCSV(saveDialog.fileUrl)
     }
 }
 
 FileDialog {
     id: loadDialog
     title: "Открыть CSV файл"
-    nameFilters: ["CSV Files (*.csv)"]
+    nameFilters: ["CSV files (*.csv)"]
     fileMode: FileDialog.OpenFile
+    folder: StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
     onAccepted: {
-        WeatherFetcher.importFromCSV(loadDialog.currentFile)
+        WeatherFetcher.importFromCSV(loadDialog.fileUrl)
     }
 }
 
